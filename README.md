@@ -2,7 +2,7 @@
 Code and files related to ROC Data Science Meetup 12 Nov 2020.\
 https://www.meetup.com/ROC-Data-Science/events/274237489/
 
-Explores fairness metrics and Shapley explanation techniques for detecting stereotyping and feature bias in models. Shows that fairness metrics do not distinguish stereotyping from decisions made based on possibly  factors.  Demonstrates that features driving differences can be isolated using Shapley techinques, and suggests additional tests for analyzing causes of differences.  
+Explores fairness metrics and Shapley explanation techniques for detecting stereotyping and feature bias in models. Shows that fairness metrics do not distinguish stereotyping from decisions made based on reasonable factors.  Demonstrates that features driving differences can be isolated using Shapley techinques, and suggests additional tests for analyzing causes of differences.  
 
 To run the code, do the following:
 1.  Install h2o (see http://h2o-release.s3.amazonaws.com/h2o/rel-zermelo/1/index.html)

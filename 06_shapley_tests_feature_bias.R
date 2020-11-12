@@ -537,7 +537,9 @@ ggsave(file.path(kOutputDir, '/06_PLOT_phi_female_by_income.png'),
 
 
 #
-# Shapley to find feature interactions ----
+# Feature interaction test ----
+# Use sammple data, which is split
+# between "males" and "females"
 #
 
 
@@ -553,10 +555,7 @@ for (i in seq(1, length(model_list))) {
     pull(feature) %>%
     as.character()
   
-  for (this_f in unique(samp_data$female_pq)) {
-    
     this_samp <- samp_data %>%
-      dplyr::filter(female_pq == this_f) %>%
       dplyr::select(all_of(this_features), 'bad_loan') %>%
       as.data.frame()
     
@@ -590,12 +589,10 @@ for (i in seq(1, length(model_list))) {
       bind_rows(this_int_inc %>%
                   as.data.frame() %>%
                   mutate(model = this_model,
-                         feature = 'annual_inc_pq')) %>%
-      mutate(female_pq = this_f)
+                         feature = 'annual_inc_pq')) 
     
     shap_int_df <- shap_int_df %>%
       bind_rows(this_int_df)
-  }
   
 }
 
@@ -603,7 +600,9 @@ saveRDS(shap_int_df, file.path(kOutputDir, '06_DATA_shap_inter.rds'))
 fwrite(shap_int_df,  file.path(kOutputDir, '06_DATA_shap_inter.csv'))
 
 shap_int_df %>%
+  arrange(model, desc(.interaction)) %>%
   dplyr::filter(feature == 'female_pq')
 
 shap_int_df %>%
+  arrange(model, desc(.interaction)) %>%
   dplyr::filter(feature == 'annual_inc_pq')

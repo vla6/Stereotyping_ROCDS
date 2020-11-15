@@ -4,6 +4,8 @@ https://www.meetup.com/ROC-Data-Science/events/274237489/
 
 Explores fairness metrics and Shapley explanation techniques for detecting stereotyping and feature bias in models. Shows that fairness metrics do not distinguish stereotyping from decisions made based on reasonable factors.  Demonstrates that features driving differences can be isolated using Shapley techinques, and suggests additional tests for analyzing causes of differences.  
 
+Uses an xgboost model via h2o; currently this is supprted only on Linux.  To use a random forest model instead (which will work on Windows), modify 02_models.R by changing the value of kModelType near the top of the file.  
+
 To run the code, do the following:
 1.  Install h2o (see http://h2o-release.s3.amazonaws.com/h2o/rel-zermelo/1/index.html)
 2.  Open the package 202010_fairness.Rproj in R Studio (if not using RStudio, set your working directory to the folder containing the project)

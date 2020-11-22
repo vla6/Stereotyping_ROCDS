@@ -151,7 +151,7 @@ plot_calibration_curves <- function(data,
     models = unique(data$model)
   }
   
-  levels_plot_orig = unique(data %>% pull(!!quantile_quo))  
+  levels_plot_orig = levels(data %>% pull(!!quantile_quo))  
   levels_plot = seq(1, length(levels_plot_orig))
   
   gp_cal <- data %>%

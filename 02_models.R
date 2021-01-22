@@ -17,7 +17,8 @@
 #  P: original feature set with modified (biased) income
 #  Q: model P + female_pq
 #  R: model Q - income_pq
-#  S: model P + female_pq + income/female_pq interaction
+#  S: model P + income/female_pq interaction
+#  T: model P + income/female_pq interaction + female_pq
 #
 # By default we create XGBoost models.  However, this
 # code can be modified to create random forest models.
@@ -29,9 +30,6 @@ source('00_setup.R')
 
 library(h2o)
 library(zeallot) # multiple func return
-
-# Model type to use ('xgboost' or 'randomForest')
-kModelType <- 'xgboost'
 
 #
 # Import data ----
@@ -142,7 +140,9 @@ x_q <- c(x_base[x_base != 'annual_inc'], 'annual_inc_pq',
          'female_pq')
 x_r <- c(x_base[x_base != 'annual_inc'], 'female_pq')
 x_s <- c(x_base[x_base != 'annual_inc'], 'annual_inc_pq',
-         'female_pq', 'inc_female_pq')
+         'inc_female_pq')
+x_t <- c(x_base[x_base != 'annual_inc'], 'annual_inc_pq',
+         'inc_female_pq', 'female_pq')
 
 # Save features
 predictors_df <- data.frame(feature = x_a) %>%
@@ -161,52 +161,48 @@ predictors_df <- data.frame(feature = x_a) %>%
               mutate(model = 'q'))  %>%
   bind_rows(data.frame(feature = x_r) %>%
               mutate(model = 'r')) %>%
-bind_rows(data.frame(feature = x_s) %>%
-            mutate(model = 's')) 
+  bind_rows(data.frame(feature = x_s) %>%
+              mutate(model = 's')) %>%
+  bind_rows(data.frame(feature = x_t) %>%
+            mutate(model = 't')) 
 
 saveRDS(predictors_df, file.path(kOutputDir, '02_DATA_predictors.rds'))
 
 # Train all the models
 
-c(grid_a_top_model_id, grid_a_top_model)  %<-%  
-  fit_save_model('a', x_a, 
-                 data_h2o_train, data_h2o_val,
-                 model_type = kModelType)
-c(grid_b_top_model_id, grid_b_top_model)  %<-%  
-  fit_save_model('b', x_b, 
-                 data_h2o_train, data_h2o_val,
-                 model_type = kModelType)
-c(grid_c_top_model_id, grid_c_top_model)  %<-%  
-  fit_save_model('c',  x_c, 
-                 data_h2o_train, data_h2o_val,
-                 model_type = kModelType)
-c(grid_d_top_model_id, grid_d_top_model)  %<-%  
-  fit_save_model('d', x_d, 
-                data_h2o_train, data_h2o_val,
-                model_type = kModelType)
-c(grid_e_top_model_id, grid_e_top_model)  %<-%  
-  fit_save_model('e', x_e, 
-                 data_h2o_train, data_h2o_val,
-                model_type = kModelType)
-c(grid_p_top_model_id, grid_p_top_model)  %<-%  
-  fit_save_model('p', x_p, 
-                 data_h2o_train, data_h2o_val,
-               model_type = kModelType)
-c(grid_q_top_model_id, grid_q_top_model)  %<-%  
-  fit_save_model('q', x_q, 
-                 data_h2o_train, data_h2o_val,
-               model_type = kModelType)
-c(grid_r_top_model_id, grid_r_top_model)  %<-%  
-  fit_save_model('r', x_r, 
-                 data_h2o_train, data_h2o_val,
-                 model_type = kModelType)
-c(grid_s_top_model_id, grid_s_top_model)  %<-%  
-  fit_save_model('s', x_s, 
-                 data_h2o_train, data_h2o_val,
-               model_type = kModelType)
+zeallot::"%<-%"(c(grid_a_top_model_id, grid_a_top_model),
+                fit_save_model('a', x_a, data_h2o_train, data_h2o_val,
+                               model_type = kModelType))
+zeallot::"%<-%"(c(grid_b_top_model_id, grid_b_top_model),
+                fit_save_model('b', x_b,  data_h2o_train, data_h2o_val,
+                               model_type = kModelType))
+zeallot::"%<-%"(c(grid_c_top_model_id, grid_c_top_model),
+                fit_save_model('c',  x_c,  data_h2o_train, data_h2o_val,
+                               model_type = kModelType))
+zeallot::"%<-%"(c(grid_d_top_model_id, grid_d_top_model),
+                fit_save_model('d', x_d, data_h2o_train, data_h2o_val,
+                               model_type = kModelType))
+zeallot::"%<-%"(c(grid_e_top_model_id, grid_e_top_model),
+                fit_save_model('e', x_e, data_h2o_train, data_h2o_val,
+                               model_type = kModelType))
+zeallot::"%<-%"(c(grid_p_top_model_id, grid_p_top_model),
+                fit_save_model('p', x_p, data_h2o_train, data_h2o_val,
+                               model_type = kModelType))
+zeallot::"%<-%"(c(grid_q_top_model_id, grid_q_top_model),
+                fit_save_model('q', x_q, data_h2o_train, data_h2o_val,
+                               model_type = kModelType))
+zeallot::"%<-%"(c(grid_r_top_model_id, grid_r_top_model),
+                fit_save_model('r', x_r, data_h2o_train, data_h2o_val,
+                               model_type = kModelType))
+zeallot::"%<-%"(c(grid_s_top_model_id, grid_s_top_model), 
+                fit_save_model('s', x_s, data_h2o_train, data_h2o_val,
+                               model_type = kModelType))
+zeallot::"%<-%"(c(grid_t_top_model_id, grid_t_top_model), 
+                fit_save_model('t', x_t,data_h2o_train, data_h2o_val,
+                               model_type = kModelType))
 
 # Save a file with all the model IDs
-model_id_df <- data.frame(model=c('a', 'b', 'c', 'd', 'e', 'p', 'q','r', 's'),
+model_id_df <- data.frame(model=c('a', 'b', 'c', 'd', 'e', 'p', 'q','r', 's', 't'),
                           id = c(grid_a_top_model_id,
                                  grid_b_top_model_id,
                                  grid_c_top_model_id,
@@ -215,13 +211,14 @@ model_id_df <- data.frame(model=c('a', 'b', 'c', 'd', 'e', 'p', 'q','r', 's'),
                                  grid_p_top_model_id,
                                  grid_q_top_model_id,
                                  grid_r_top_model_id,
-                                 grid_s_top_model_id))
+                                 grid_s_top_model_id,
+                                 grid_t_top_model_id))
 
 model_id_df %>%
   fwrite(file.path(kOutputDir, '/02_REPORT_model_ids.csv'))
 
 #
-# Metrics ----
+# Thresholds and model info  ----
 #
 
 # Reload models
@@ -272,18 +269,18 @@ get_met_thresh <- function(model, newdata, thresh) {
   return(met)
 }
 
-metrics_comb = data.frame()
+thresh_comb = data.frame()
 for (this_model in model_list) {
-  this_metrics <- model_list_h2o[[this_model]] %>%
+  this_thresh <- model_list_h2o[[this_model]] %>%
     get_met_thresh(data_h2o_val, train_thresh_list[[this_model]]) %>%
     mutate(model = this_model)
   
-  metrics_comb <- metrics_comb %>%
-    bind_rows(this_metrics)
+  thresh_comb <- thresh_comb %>%
+    bind_rows(this_thresh)
 }
 
-fwrite(metrics_comb,
-       file.path(kOutputDir, '02_REPORT_model_metrics.csv'))
+fwrite(thresh_comb,
+       file.path(kOutputDir, '02_REPORT_model_thresholds_met.csv'))
 
 #
 # Feature importances ----
@@ -344,15 +341,6 @@ varimp_df %>%
 # Predict ----
 # Train and validation data for all models
 #
-
-# Function to get predictions for arbitrary data
-get_predictions <- function(data, model) {
-  data_pred <-h2o.predict(model, newdata = data %>% as.h2o()) %>%
-    as.data.frame() %>%
-    bind_cols(data %>% dplyr::select(ID, bad_loan, 
-                                     any_of(c('female', 'female_pq'))))
-  return(data_pred)
-}
 
 
 # Get predictions for train and validation for all models

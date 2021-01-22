@@ -25,7 +25,7 @@ kNumSampsFoil <- 2500
 kMaxFeat <- 10
 
 # Exempt model with different female definitions
-kModelOmit <- c('p', 'q', 'r', 's')
+kModelOmit <- c('p', 'q', 'r', 's', 't')
 
 #
 # Import data  ----

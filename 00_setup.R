@@ -16,8 +16,21 @@ require(h2o)
 # Inputs come from web; see 01_data_process.R script
 #
 
-kOutputDir <- file.path("/mdrive/Ad Hoc/VAC/Data/202010_rds_fairness/2020_11_06_rs/")
+#kOutputDir <- file.path('/mnt/batch/tasks/shared/LS_root/mounts/clusters/valtest005/code/Users/vcarey/',
+#                        '/Data/20201022_fairness/2020_12_02_rf')
+kOutputDir <- file.path('/mnt/batch/tasks/shared/LS_root/mounts/clusters/valtest005/code/Users/vcarey/',
+                                                '/Data/20201022_fairness/2021_01_12_xgb')
 
+#
+# Model type ----
+# This project can be run using XGBoost or 
+# Random forest models
+#
+
+
+# Model type to use ('xgboost' or 'randomForest')
+#kModelType <- 'randomForest'
+kModelType <- 'xgboost'
 
 #
 # Load common libraries ----
@@ -25,9 +38,9 @@ kOutputDir <- file.path("/mdrive/Ad Hoc/VAC/Data/202010_rds_fairness/2020_11_06_
 #
 
 # Install packages if needed
-pkg_list <- c('tidyverse', 'data.table', 'dplyr',
-              'ggplot2', 'Hmisc', 'rvest', 'zeallot',
-              'PRROC', 'devtools', 'glmnet', 'iml')
+pkg_list <- c('tidyverse', 'data.table', 'dplyr', 'yaImpute',
+              'ggplot2', 'Hmisc', 'rvest', 'zeallot', 'bit64',
+              'PRROC', 'devtools', 'glmnet', 'iml', 'fastDummies')
 installed_pkg <- installed.packages()[,1] %>% as.vector()
 new_pkg <- pkg_list[!pkg_list %in% installed_pkg]
 if (length(new_pkg) > 0) {
@@ -48,3 +61,4 @@ source('00_scripts/model_load.R')
 source('00_scripts/metrics_by_group.R')
 source('00_scripts/get_corrleations.R')
 source('00_scripts/plot_model_phi_side_by_side.R')
+source('00_scripts/get_predictions.R')

@@ -11,7 +11,8 @@
 #  P: original feature set with modified (biased) income
 #  Q: model P + female_pq
 #  R: model Q - income_pq
-#  S: model P + female_pq + income/female_pq interaction
+#  S: model P + income/female_pq interaction
+#  T: model P + income/female_pq interaction + female_pq
 # 
 #
 
@@ -21,7 +22,7 @@ source('00_setup.R')
 library(PRROC)
 
 # Exempt model with different female definitions
-kModelInclude <- c('p', 'q', 'r', 's')
+kModelInclude <- c('p', 'q', 'r', 's', 't')
 
 #
 # Import data  ----
@@ -38,6 +39,11 @@ threshold_df <- readRDS(file.path(kOutputDir, '/02_DATA_thresholds.rds'))  %>%
 # Validation data predictions
 predictions_validation <- readRDS(file.path(kOutputDir, '02_DATA_predictions.rds'))  %>%
   dplyr::filter(model %in% kModelInclude)
+
+# Validations data
+split_id_val <- readRDS(file.path(kOutputDir, '/01_DATA_split_id_val.rds'))
+data_val <- readRDS(file.path(kOutputDir, '/01_DATA_base_gender_inf.rds')) %>%
+  semi_join(split_id_val, by='ID')
 
 #
 # Actual, predicted ----
@@ -80,6 +86,71 @@ predicted_by_sex %>%
               values_from=c('mean_model')) %>%
   left_join(actual_by_sex, by='gender_str') %>%
   fwrite(file.path(kOutputDir, '/04_REPORT_ratios_by_sex.csv'))
+
+#
+# Quartiles actual vs. predicted ----
+#
+
+# Income quartiles by female_pq
+inc_quartiles <- data_val  %>%
+  dplyr::select(ID, female_pq, annual_inc_pq) %>%
+  group_by(female_pq) %>%
+  mutate(income_quartile = Hmisc::cut2(annual_inc_pq, g=4,digits=6)) %>%
+  ungroup() %>% 
+  arrange(female_pq, income_quartile) 
+
+# Label the quantiles
+labels_df <- inc_quartiles %>%
+  arrange(female_pq, income_quartile) %>%
+  group_by(female_pq) %>%
+  distinct(income_quartile) %>% 
+  mutate(income_quartile_num = seq_len(n())) %>%
+  ungroup() 
+
+  
+actual_predicted_by_quantile <-predictions_validation %>%
+  left_join(inc_quartiles %>% dplyr::select(ID, income_quartile), by='ID') %>%
+  mutate(income_quartile = factor(income_quartile, levels=labels_df$income_quartile,
+                                  labels=labels_df$income_quartile_num)) %>%
+  dplyr::group_by(model, female_pq, income_quartile) %>%
+  dplyr::summarize(mean_actual = mean(bad_loan == '1'),
+                   mean_pred_prob = mean(p1)) %>%
+  ungroup() 
+
+actual_predicted_by_quantile %>%
+  fwrite(file.path(kOutputDir, '/04_REPORT_ratios_by_sex_quartile.csv'))
+
+# Plot corection trends
+actual_pred_pq <- actual_predicted_by_quantile %>%
+  #dplyr::filter(model %in% c('p', 'q')) %>%
+  pivot_wider(id_cols = c('female_pq', 'income_quartile', 'mean_actual'),
+              names_from = 'model',
+              values_from = 'mean_pred_prob') %>%
+  pivot_longer(c('mean_actual', any_of(kModelInclude)))
+
+gp_inc_quartile_all <- actual_pred_pq %>%
+  ggplot(aes(x=income_quartile, y=value, fill=name)) +
+  geom_col(position=position_dodge()) +
+  facet_wrap(~female_pq) +
+  theme_minimal(base_size = 14) 
+
+print(gp_inc_quartile_all)
+
+ggsave(file.path(kOutputDir, '/04_PLOT_quartile_actual_predicated_all.png'),
+       gp_inc_quartile_all, type='cairo', width=7, height=4)
+
+# P, Q only
+gp_inc_quartile_pq <- actual_pred_pq %>%
+  dplyr::filter(name %in% c('p', 'q', 'mean_actual')) %>%
+  ggplot(aes(x=income_quartile, y=value, fill=name)) +
+  geom_col(position=position_dodge()) +
+  facet_wrap(~female_pq) +
+  theme_minimal(base_size = 14) 
+
+print(gp_inc_quartile_pq)
+
+ggsave(file.path(kOutputDir, '/04_PLOT_quartile_actual_predicated_pq.png'),
+       gp_inc_quartile_pq, type='cairo', width=7, height=4)
 
 
 #

@@ -25,7 +25,7 @@ kNumSampsFoil <- 2500
 kMaxFeat <- 15 # Higher as female_pq not very important overall
 
 # Exempt model with different female definitions
-kModelInclude <- c('p', 'q', 'r', 's')
+kModelInclude <- c('p', 'q', 'r', 's', 't')
 
 #
 # Import data  ----
@@ -231,21 +231,6 @@ for (this_model in model_list) {
   }
   
 }
-
-# Models p, q together
-shap_df_agg_sex %>%
-  plot_model_phi_side_by_side(models=c('p', 'q'),
-                              female_val = 1,
-                              female_var = female_pq,
-                              outfile=file.path(kOutputDir,
-                                                '06_PLOT_shap_comp_p_q.png'))
-# Models p, q, s
-shap_df_agg_sex %>%
-  plot_model_phi_side_by_side(models=c('p', 'q', 's'),
-                              female_val = 1,
-                              female_var = female_pq,
-                              outfile=file.path(kOutputDir,
-                                                '06_PLOT_shap_comp_p_q_s.png'))
 
 
 #
@@ -479,12 +464,8 @@ ggsave(file.path(kOutputDir, '06_PLOT_interaction_outcome_by_income.png'),
 
 shap_data_inc_grp <- shap_df %>%
   left_join(predictions_with_income %>%
-              dplyr::select(-female_pq), by=c('ID', 'model'))
-
-summary(shap_data_inc_grp$female_pq)
-shap_data_inc_grp %>% nrow()
-shap_data_inc_grp %>% distinct(model, feature, ID) %>% nrow()
-shap_data_inc_grp %>% distinct(ID) %>% nrow()
+              dplyr::select(ID, model, p1, predict, inc_grp), 
+            by=c('ID', 'model'))
 
 
 # Plot annual income phi value by female status for both models
@@ -527,7 +508,7 @@ gp_female_phi_by_inc <- shap_data_inc_grp %>%
   facet_wrap(~model) +
   geom_hline(yintercept=0) +
   labs(title='Female feature effect by income level',
-       y = 'Phi for income feature',
+       y = 'Phi for female feature',
        x = 'Income (grouped), in thousands')
 
 print(gp_female_phi_by_inc)
@@ -535,6 +516,180 @@ print(gp_female_phi_by_inc)
 ggsave(file.path(kOutputDir, '/06_PLOT_phi_female_by_income.png'),
        gp_female_phi_by_inc, type='cairo', width=8, height=5)
 
+#
+# Phi scatter ----
+# phi for income vs. phi for female status
+# phi for income vs. phi for income/female interaction
+#
+
+plot_pairwise_phi_scatter <- function(data, this_model, features,
+                                      include_males = F,
+                                      outfile_prefix = NULL) {
+  
+  if (length(features) != 2) {
+    return(NULL)
+  }
+  name_vec <- sapply(features, function(x) paste0('phi_', x))
+  names(name_vec) <- c('v1', 'v2')
+  
+  inc_scatter_df <- data %>%
+    dplyr::select(ID, model, feature, phi, female_pq) %>%
+    dplyr::filter(model == this_model &
+                    feature %in% features) %>%
+    pivot_wider(id_cols = c('ID', 'model', 'female_pq'),
+                names_from = 'feature',
+                values_from = 'phi',
+                names_prefix = 'phi_') %>%
+    rename_at(vars(all_of(name_vec)), ~names(name_vec) )
+  
+  if (include_males == F) {
+    gp_inc_scatter <- inc_scatter_df %>%
+      dplyr::filter(female_pq == 1) %>%
+      ggplot(aes(x=v1, y=v2)) 
+    
+  } else {
+    gp_inc_scatter <- inc_scatter_df %>%
+      ggplot(aes(x=v1, y=v2, color=female_pq)) 
+  }
+
+  gp_inc_scatter <- gp_inc_scatter +
+    geom_point() +
+    theme_minimal(base_size = 14) +
+    labs(x = paste0('phi for ', features[1]),
+         y = paste0('phi for ', features[2]),
+         title=paste0('Model: ', this_model))
+  
+  print(gp_inc_scatter)
+  
+  if (!is.null(outfile_prefix)) {
+    ggsave(paste0(outfile_prefix, '_', this_model,
+                  '_', features[1], '_', features[2], '.png'),
+           gp_inc_scatter, type='cairo', width=5, height=4)
+  }
+  
+  # Correlation
+  this_cor <- (inc_scatter_df %>%
+    dplyr::filter(female_pq == 1) %>%
+    dplyr::select(v1, v2) %>%
+    cor(method ='spearman'))[1,2]
+  
+  return(data.frame(model = this_model,
+                    v1 = features[1],
+                    v2 = features[2],
+                    cor = this_cor))
+  
+}
+
+
+# phi value plots, also save correlations
+
+shap_data_inc_grp %>% glimpse()
+
+feature_pairs <- list(c('annual_inc_pq', 'female_pq'),
+                c('annual_inc_pq', 'inc_female_pq'),
+                c('inc_female_pq', 'female_pq'))
+
+phi_cor_df = data.frame()
+
+for (this_model in model_list) { 
+  for (this_features in feature_pairs) {
+    
+    this_model_features = predictors_df %>%
+      dplyr::filter(model == this_model) %>%
+      pull(feature) %>%
+      as.character()
+    
+    if (length(setdiff(this_features, this_model_features)) > 0) {
+      next
+    }
+
+    this_cor <- shap_data_inc_grp %>%
+      plot_pairwise_phi_scatter(this_model, this_features,
+                                outfile_prefix= file.path(kOutputDir,
+                                                          '06_PLOT_scatter_phi'))
+    
+    phi_cor_df <- phi_cor_df %>%
+      bind_rows(this_cor)
+    
+  }
+}
+
+fwrite(phi_cor_df,
+       file.path(kOutputDir, '06_REPORT_phi_correlations.csv'))
+  
+#
+# Income scatter ----
+# Income dollars vs. phi value scatter plots
+# Look at female_pq, annual_inc_pq, inc_female_pq
+#
+
+plot_income_scatter <- function(data, this_model, this_feature,
+                                outfile_prefix = NULL) {
+  inc_scatter_df <- data %>%
+    dplyr::filter(female_pq == 1 &
+                    feature == this_feature &
+                    model == this_model) %>%
+    dplyr::select(ID, annual_inc_pq, phi)
+  
+  gp_inc_scatter <- inc_scatter_df %>%
+    ggplot(aes(x=annual_inc_pq, y=phi)) +
+    geom_point() +
+    theme_minimal(base_size = 14) +
+    labs(y = paste0('phi for ', this_feature),
+         title=paste0('Model: ', this_model)) +
+    scale_x_log10(limits =c(1e3, 1e6)) 
+  
+  print(gp_inc_scatter)
+  
+  if (!is.null(outfile_prefix)) {
+    ggsave(paste0(outfile_prefix, '_', this_model,
+                  '_', this_feature, '.png'),
+           gp_inc_scatter, type='cairo', width=5, height=4)
+  }
+  
+  # Correlation
+  this_cor <- (inc_scatter_df %>%
+                 dplyr::select(annual_inc_pq, phi) %>%
+                 cor(method ='spearman'))[1,2]
+  
+  return(data.frame(model = this_model,
+                    feature = this_feature,
+                    cor = this_cor))
+  
+}
+
+
+# phi vs income plots, also save correlations
+
+features <- c('annual_inc_pq', 'female_pq', 'inc_female_pq')
+
+inc_cor_df = data.frame()
+
+for (this_model in model_list) { 
+  for (this_feature in features) {
+    
+    this_model_features = predictors_df %>%
+      dplyr::filter(model == this_model) %>%
+      pull(feature) %>%
+      as.character()
+    
+    if (!this_feature %in% this_model_features) {
+      next
+    }
+    
+    this_cor <- shap_data_inc_grp %>%
+      plot_income_scatter(this_model, this_feature,
+                                outfile_prefix= file.path(kOutputDir,
+                                                          '06_PLOT_scatter_inc_phi'))
+    
+    inc_cor_df <- inc_cor_df %>%
+      bind_rows(this_cor)
+    
+  }
+}
+
+fwrite(inc_cor_df,
+       file.path(kOutputDir, '06_REPORT_inc_phi_correlations.csv'))
 
 #
 # Feature interaction test ----
@@ -582,6 +737,13 @@ for (i in seq(1, length(model_list))) {
       this_int_inc = data.frame()
     }
     
+    # Interaction with interaction term
+    if ('inc_female_pq' %in% this_features) {
+      this_int_int  <- (Interaction$new(this_predictor, feature='inc_female_pq'))$results 
+    } else {
+      this_int_int = data.frame()
+    }
+    
     this_int_df <- this_int %>%
       as.data.frame() %>%
       mutate(model = this_model,
@@ -589,7 +751,11 @@ for (i in seq(1, length(model_list))) {
       bind_rows(this_int_inc %>%
                   as.data.frame() %>%
                   mutate(model = this_model,
-                         feature = 'annual_inc_pq')) 
+                         feature = 'annual_inc_pq'))  %>%
+      bind_rows(this_int_int %>%
+                  as.data.frame() %>%
+                  mutate(model = this_model,
+                         feature = 'inc_female_pq'))
     
     shap_int_df <- shap_int_df %>%
       bind_rows(this_int_df)
@@ -600,9 +766,289 @@ saveRDS(shap_int_df, file.path(kOutputDir, '06_DATA_shap_inter.rds'))
 fwrite(shap_int_df,  file.path(kOutputDir, '06_DATA_shap_inter.csv'))
 
 shap_int_df %>%
-  arrange(model, desc(.interaction)) %>%
+  arrange(model,  desc(.interaction)) %>%
   dplyr::filter(feature == 'female_pq')
 
 shap_int_df %>%
   arrange(model, desc(.interaction)) %>%
   dplyr::filter(feature == 'annual_inc_pq')
+
+shap_int_df %>%
+  arrange(model, desc(.interaction)) %>%
+  dplyr::filter(feature == 'inc_female_pq')
+
+#
+# ALE/PDP ----
+# One and two way ALE plots which separate out
+# main effects from interactions.  Also show the PDPs.
+#
+
+female_ale_pdp = data.frame()
+
+for (i in seq(1, length(model_list))) { 
+  
+  this_model = model_list[i]
+  this_model_h2o = model_list_h2o[[this_model]] 
+  
+  this_features = predictors_df %>%
+    dplyr::filter(model == this_model) %>%
+    pull(feature) %>%
+    as.character()
+  
+  this_samp <- samp_data %>%
+    dplyr::select(all_of(this_features), 'bad_loan') %>%
+    as.data.frame()
+  
+  this_plot_prefix = file.path(kOutputDir, paste0('06_PLOT_dep_',
+                                                  this_model))
+  
+  # Create predictor object, using test data as the base
+  this_predictor <- Predictor$new(
+    model = this_model_h2o, 
+    y = 'bad_loan', 
+    data =  this_samp,
+    predict.fun = pred_fun,
+    class = 2
+  )
+  
+  # Income feature.  ALE and PDP
+  if ('annual_inc_pq' %in% this_features) {
+    ale_inc <- FeatureEffect$new(this_predictor,  c("annual_inc_pq"), method='ale') 
+    gp_ale_inc <-ale_inc$results %>%
+      ggplot(aes(x=annual_inc_pq, y=.value))+
+      geom_line() +
+      scale_x_continuous(labels=scales::dollar) +
+        coord_cartesian(xlim =c(0,150000), expand=T) +
+      theme_minimal(base_size = 14) +
+      labs(x='Annual Income', y='ALE Value') +
+      geom_hline(yintercept=0, color='gray')
+    print(gp_ale_inc)
+    ggsave(paste0(this_plot_prefix, '_ale_annual_inc_pq.png'),
+           gp_ale_inc, type='cairo', width=5, height=4)
+    
+    pdp_inc <- FeatureEffect$new(this_predictor,  c("annual_inc_pq"), method='pdp') 
+    gp_pdp_inc <-pdp_inc$results %>%
+      ggplot(aes(x=annual_inc_pq, y=.value))+
+      geom_line() +
+      scale_x_continuous(labels=scales::dollar) +
+      coord_cartesian(xlim =c(0,150000), expand=T) +
+      theme_minimal(base_size = 14) +
+      labs(x='Annual Income', y='PDP Value')
+    print(gp_pdp_inc)
+    ggsave(paste0(this_plot_prefix, '_pdp_annual_inc_pq.png'),
+           gp_pdp_inc, type='cairo', width=5, height=4)
+  }
+  
+  # Female feature.  ALE and PDP
+  if ('female_pq' %in% this_features) {
+    ale_female <- FeatureEffect$new(this_predictor,  c("female_pq"), method='ale')
+    gp_ale_female <- ale_female$results %>%
+      ggplot(aes(x=female_pq, y=.value)) +
+      geom_col() +
+      geom_hline(yintercept=0) +
+      theme_minimal(base_size = 14) +
+      labs(x='Female Status', y='ALE Value') 
+    print(gp_ale_female)
+    ggsave(paste0(this_plot_prefix, '_ale_female_pq.png'),
+           gp_ale_female, type='cairo', width=5, height=4)
+    
+    pdp_female <- FeatureEffect$new(this_predictor,  c("female_pq"), method='pdp')
+    gp_pdp_female <- pdp_female$results %>%
+      ggplot(aes(x=female_pq, y=.value)) +
+      geom_col() +
+      geom_hline(yintercept=0) +
+      theme_minimal(base_size = 14) +
+      labs(x='Female Status', y='PDP Value')
+    print(gp_pdp_female)
+    ggsave(paste0(this_plot_prefix, '_pdp_female_pq.png'),
+           gp_pdp_female, type='cairo', width=5, height=4)
+    
+    # Save the values
+    female_ale_pdp <- female_ale_pdp %>%
+      bind_rows(ale_female$results %>%
+                  as.data.frame() %>%
+                  mutate(model=this_model)) %>%
+      bind_rows(pdp_female$results %>%
+                  as.data.frame() %>%
+                  mutate(model=this_model))
+  }
+  
+  # Income/female interaction feature.  ALE and PDP
+  if ('inc_female_pq' %in% this_features) {
+    ale_female_int <- FeatureEffect$new(this_predictor,  c("inc_female_pq"), method='ale')
+    gp_ale_female_int <- ale_female_int$results %>%
+      ggplot(aes(x=inc_female_pq, y=.value))+
+      geom_line() +
+      scale_x_continuous(labels=scales::dollar) +
+      coord_cartesian(xlim =c(0,150000), expand=T) +
+      theme_minimal(base_size = 14) +
+      labs(x='Female/Income Interaction', y='ALE Value') +
+      geom_hline(yintercept=0, color='gray')
+    print(gp_ale_female_int)
+    ggsave(paste0(this_plot_prefix, '_ale_inc_female_pq.png'),
+           gp_ale_female_int, type='cairo', width=5, height=4)
+    
+    pdp_female_int <- FeatureEffect$new(this_predictor,  c("inc_female_pq"), method='pdp')
+    gp_pdp_female_int <- pdp_female_int$results %>%
+      ggplot(aes(x=inc_female_pq, y=.value)) +
+      geom_line() +
+      scale_x_continuous(labels=scales::dollar) +
+      coord_cartesian(xlim =c(0,150000), expand=T) +
+      theme_minimal(base_size = 14) +
+      labs(x='Female/Income Interaction', y='PDP Value') 
+    print(gp_pdp_female_int)
+    ggsave(paste0(this_plot_prefix, '_pdp_inc_female_pq.png'),
+           gp_pdp_female_int, type='cairo', width=5, height=4)
+  }
+  
+  # Interaction - female and income
+  if ('female_pq' %in% this_features & 
+      'annual_inc_pq' %in% this_features) {
+    ale_female_inc <- FeatureEffect$new(this_predictor,  
+                                        c('annual_inc_pq', "female_pq"), method='ale')
+    gp_ale_female_inc <- ale_female_inc$results %>%
+      ggplot(aes(x=annual_inc_pq, y=.ale, color=female_pq)) +
+      geom_line() +
+      scale_x_continuous(labels=scales::dollar) +
+      coord_cartesian(xlim =c(0,150000), expand=T) +
+      theme_minimal(base_size = 14) +
+      labs(x='Annual Income', y='ALE Value', color='Female')+
+      geom_hline(yintercept=0, color='gray') +
+      scale_color_manual(values = c('turquoise', 'coral')) +
+      theme(legend.position=c(0.8, 0.6),
+            legend.background = element_rect(color='gray', fill='white'))
+    print(gp_ale_female_inc)
+    ggsave(paste0(this_plot_prefix, '_ale_2way_inc_female.png'),
+           gp_ale_female_inc, type='cairo', width=5, height=4)
+    
+    pdp_female_inc <- FeatureEffect$new(this_predictor,  
+                                        c('annual_inc_pq', "female_pq"), method='pdp')
+    gp_pdp_female_inc <- pdp_female_inc$results %>%
+      ggplot(aes(x=annual_inc_pq, y=.value, color=female_pq)) +
+      geom_line() +
+      scale_x_continuous(labels=scales::dollar) +
+      coord_cartesian(xlim =c(0,150000), expand=T) +
+      theme_minimal(base_size = 14) +
+      labs(x='Annual Income', y='PDP Value', color='Female')+
+      scale_color_manual(values = c('turquoise', 'coral')) +
+      theme(legend.position=c(0.8, 0.6),
+            legend.background = element_rect(color='gray', fill='white'))
+    print(gp_pdp_female_inc)
+    ggsave(paste0(this_plot_prefix, '_pdp_2way_inc_female.png'),
+           gp_pdp_female_inc, type='cairo', width=5, height=4)
+  }
+  
+  # Interaction - female/inc and income
+  if ('inc_female_pq' %in% this_features & 
+      'annual_inc_pq' %in% this_features) {
+    ale_female_int_inc <- FeatureEffect$new(this_predictor,  
+                                        c('annual_inc_pq', "inc_female_pq"), method='ale')
+    gp_ale_female_int_inc <- ale_female_int_inc$results %>%
+      dplyr::filter(.bottom <= 150000 &
+                      .right<= 150000) %>%
+      ggplot(aes(xmin = .left, xmax = .right, ymin = .bottom,
+                 ymax = .top, fill=.ale)) +
+      geom_rect() +
+      theme_minimal(base_size = 14) +
+      labs(x='Annual Income', y='Income/Female Interaction', fill='ALE')  +
+      theme_minimal(base_size = 14) +
+      scale_x_continuous(labels=scales::dollar) +
+      scale_y_continuous(labels=scales::dollar) +
+      scale_fill_gradient2()
+    print(gp_ale_female_int_inc)
+    ggsave(paste0(this_plot_prefix, '_ale_2way_inc_femaleint.png'),
+           gp_ale_female_int_inc, type='cairo', width=5, height=4)
+    
+    pdp_female_int_inc <- FeatureEffect$new(this_predictor,  
+                                        c('annual_inc_pq', "inc_female_pq"), method='pdp')
+    gp_pdp_female_int_inc <- pdp_female_int_inc$results %>%
+      dplyr::filter(annual_inc_pq<= 150000 &
+                      inc_female_pq <= 150000) %>%
+      ggplot(aes(x = annual_inc_pq, y= inc_female_pq,fill=.value)) +
+      geom_tile() +
+      theme_minimal(base_size = 14) +
+      labs(x='Annual Income', y='Income/Female Interaction', fill='PDP')  +
+      theme_minimal(base_size = 14) +
+      scale_x_continuous(labels=scales::dollar) +
+      scale_y_continuous(labels=scales::dollar)
+    print(gp_pdp_female_int_inc)
+    ggsave(paste0(this_plot_prefix, '_pdp_2way_inc_femaleint.png'),
+           gp_pdp_female_int_inc, type='cairo', width=5, height=4)
+  }
+  
+}
+
+fwrite(female_ale_pdp,
+       file.path(kOutputDir, '/06_ALE_PDP_female_results.csv'))
+
+
+#
+# Models P and Q Comparison ----
+# Show most influential features in P,
+# plus the female feature.
+#
+
+# Get top 5 features for model P, plus income row from model Q
+# Rank for major differences
+model_p_ranks <- shap_model_inf %>%
+  dplyr::filter(model == 'p' & phi_rank <= 5) %>%
+  dplyr::select(-model) %>%
+  bind_rows(shap_model_inf %>%
+              dplyr::filter(model == 'q' & feature == 'female_pq') %>%
+              dplyr::select(-model)) %>%
+  arrange(phi_rank)
+
+# Group unselected features into "other" for p and q, females only
+shap_df_other_grp_pq <- shap_df %>%
+  dplyr::filter(model %in% c('p', 'q')) %>%
+  left_join(model_p_ranks, by=c('feature')) %>%
+  mutate(phi_rank = case_when(is.na(phi_rank)  ~ as.integer(999), TRUE ~ phi_rank),
+         feature = case_when(phi_rank == 999 ~ 'other',
+                             TRUE ~ feature)) %>%
+  group_by(model, female_pq, ID, feature) %>%
+  dplyr::summarize(female_pq = first(female_pq),
+                   phi = sum(phi, na.rm=T),
+                   phi_rank = first(phi_rank)) %>%
+  ungroup() 
+
+# Aggregate model p,q values
+shap_df_agg_pq <- shap_df_other_grp_pq %>%
+  group_by(model, female_pq, feature) %>%
+  dplyr::summarize(phi_mean = mean(phi),
+                   phi_sd = sd(phi),
+                   phi_rank = first(phi_rank),
+                   tot_n = n()) %>%
+  ungroup() %>%
+  arrange(model, female_pq, phi_rank)
+
+shap_df_agg_pq_features = unique((shap_df_agg_pq %>%
+                                   dplyr::filter(model == 'q' &
+                                                   female_pq == 1))$feature) 
+shap_df_agg_pq_labels= gsub('*_pq$', '',
+                                shap_df_agg_pq_features)
+
+ylim = 0.01 *c(floor(min(shap_df_agg_pq$phi_mean)/0.01),
+         ceiling(max(shap_df_agg_pq$phi_mean)/0.01))
+
+  
+# Plot females
+gp_shap_pq <- shap_df_agg_pq %>%
+  dplyr::filter(female_pq == 1) %>%
+  mutate(feature = factor(feature, levels=shap_df_agg_pq_features,
+                          labels=shap_df_agg_pq_labels),
+         model = factor(model, levels=c('p', 'q'),
+                        labels=c('Model', 'Model + female'))) %>%
+  ggplot(aes(x=fct_rev(feature), y=phi_mean, fill=model)) +
+  geom_col(position=position_dodge2(preserve = "single", reverse=T)) +
+  coord_flip() +
+  theme_minimal(base_size=14) +
+  labs(x=NULL, y='Mean Shapley value', fill=NULL) +
+  theme(legend.position=c(0.8, 0.15),
+        legend.background = element_rect(fill='white', color='gray')) +
+  scale_fill_manual(values = c('darkgray', 'darkorange')) +
+  scale_y_continuous(limits=ylim, expand = expansion(0.03))
+
+print(gp_shap_pq)
+ggsave(file.path(kOutputDir, '/06_PLOT_shap_pq_compare.png'),
+       gp_shap_pq, type='cairo', width=5.5, height=4.5)
+

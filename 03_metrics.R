@@ -30,7 +30,7 @@ source('00_setup.R')
 library(PRROC)
 
 # Exempt model with different female definitions
-kModelOmit <- c('p', 'q', 'r', 's')
+kModelOmit <- c('p', 'q', 'r', 's', 't')
 
 #
 # Import data  ----

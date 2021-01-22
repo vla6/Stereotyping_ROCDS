@@ -13,3 +13,9 @@ To run the code, do the following:
 4.  Run the file 00_run_all.R
 
 Because exact Shapley values are calculated, runtimes are long.  The number of samples analyzed can be reduced to speed up the scripts.  
+
+**Information for towardsdatascience.com Readers**
+
+For the post titled "Fairness Metrics Won’t Save You from Stereotyping" (https://towardsdatascience.com/fairness-metrics-wont-save-you-from-stereotyping-27127e220cac), you only need to run scripts 00, 01, 02, 03, and 05.  
+
+For the post titled "No Free Lunch with Feature Bias", run scripts 00, 01, 02,04, 06, and 07.

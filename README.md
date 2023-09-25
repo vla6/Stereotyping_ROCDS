@@ -14,8 +14,8 @@ To run the code, do the following:
 
 Because exact Shapley values are calculated, runtimes are long.  The number of samples analyzed can be reduced to speed up the scripts.  
 
-**Information for towardsdatascience.com Readers**
+**Towards Data Science Article Code**
 
-For the post titled "Fairness Metrics Won’t Save You from Stereotyping" (https://towardsdatascience.com/fairness-metrics-wont-save-you-from-stereotyping-27127e220cac), you only need to run scripts 00, 01, 02, 03, and 05.  
+For [Fairness Metrics Won’t Save You from Stereotyping](https://towardsdatascience.com/fairness-metrics-wont-save-you-from-stereotyping-27127e220cac), you only need to run scripts 00, 01, 02, 03, and 05.  
 
-For the post titled "No Free Lunch with Feature Bias", run scripts 00, 01, 02,04, 06, and 07.
+For [No Free Lunch with Feature Bias](https://medium.com/towards-data-science/no-free-lunch-with-feature-bias-561c9cd3dd18) and [How to Fix Feature Bias](https://medium.com/towards-data-science/how-to-fix-feature-bias-9e47abccb942), run scripts 00, 01, 02,04, 06, and 07.
